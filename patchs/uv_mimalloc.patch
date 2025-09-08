@@ -1,0 +1,39 @@
+diff --git a/crates/uv-performance-memory-allocator/Cargo.toml b/crates/uv-performance-memory-allocator/Cargo.toml
+index fabba97..3f1b5ab 100644
+--- a/uv/crates/uv-performance-memory-allocator/Cargo.toml
++++ b/uv/crates/uv-performance-memory-allocator/Cargo.toml
+@@ -8,9 +8,4 @@ edition = "2024"
+ doctest = false
+ 
+ [dependencies]
+-
+-[target.'cfg(all(target_os = "windows"))'.dependencies]
+-mimalloc = { version = "0.1.43" }
+-
+-[target.'cfg(all(not(target_os = "windows"), not(target_os = "openbsd"), not(target_os = "freebsd"), any(target_arch = "x86_64", target_arch = "aarch64", target_arch = "powerpc64")))'.dependencies]
+-tikv-jemallocator = { version = "0.6.0" }
++mimalloc = { version = "0.1.48", features = ["no_thp","override","v3"] }
+diff --git a/crates/uv-performance-memory-allocator/src/lib.rs b/crates/uv-performance-memory-allocator/src/lib.rs
+index 03ec650..bb338aa 100644
+--- a/uv/crates/uv-performance-memory-allocator/src/lib.rs
++++ b/uv/crates/uv-performance-memory-allocator/src/lib.rs
+@@ -1,19 +1,5 @@
+ //! The only purpose of this crate is to pull in `mimalloc` on windows and
+ //! `tikv-jemallocator` on most other platforms.
+ 
+-#[cfg(target_os = "windows")]
+ #[global_allocator]
+ static GLOBAL: mimalloc::MiMalloc = mimalloc::MiMalloc;
+-
+-#[cfg(all(
+-    not(target_os = "windows"),
+-    not(target_os = "openbsd"),
+-    not(target_os = "freebsd"),
+-    any(
+-        target_arch = "x86_64",
+-        target_arch = "aarch64",
+-        target_arch = "powerpc64"
+-    )
+-))]
+-#[global_allocator]
+-static GLOBAL: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;

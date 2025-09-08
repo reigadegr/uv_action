@@ -1,0 +1,20 @@
+diff --git a/Cargo.toml b/Cargo.toml
+index ad43c0f..d6dfe81 100644
+--- a/uv/Cargo.toml
++++ b/uv/Cargo.toml
+@@ -263,8 +263,14 @@ use_self = "warn"
+ large_stack_arrays = "allow"
+ 
+ [profile.release]
+-strip = true
++overflow-checks = false
++codegen-units = 1
+ lto = "fat"
++opt-level = 3
++strip = true
++debug = 0
++debug-assertions = false
++incremental = false
+ 
+ # This profile is meant to mimic the `release` profile as closely as
+ # possible, but using settings that are more beneficial for iterative
