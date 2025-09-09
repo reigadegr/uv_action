@@ -135,7 +135,7 @@ jobs:
           cd uv
           for bin_name in "uv" "uvx" "uvw"; do
               rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
-              echo "当前编译的项目: $i"
+              echo "当前编译的项目: $bin_name"
               toolchain="${{ github.event.inputs.TOOLCHAINS }}"
               platform="${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'apple' || 'linux') }}"
               file="build_"$toolchain"_"$platform".sh"
