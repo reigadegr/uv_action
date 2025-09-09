@@ -130,24 +130,12 @@ jobs:
         shell: bash
         run: |
           rm -rf ./*/target && echo "删除了target" || echo "无需删除"
+          rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
           work_space="$(pwd)"
           mkdir output || true
-          for i in $(ls); do
-              [ -f "$work_space/$i/Cargo.toml" ] || continue
-              rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
-              cd "$work_space/$i"
+          cd uv
+          for bin_name in "uv" "uvx" "uvw"; do
               echo "当前编译的项目: $i"
-              case "$i" in
-                  "ripgrep")
-                      bin_name="rg"
-                      ;;
-                  "mdBook")
-                      bin_name="mdbook"
-                      ;;
-                  *)
-                      bin_name="$i"
-                      ;;
-              esac
 
               toolchain="${{ github.event.inputs.TOOLCHAINS }}"
               platform="${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'apple' || 'linux') }}"
@@ -156,6 +144,7 @@ jobs:
               url="https://github.com/reigadegr/uv_action/raw/main/$file"
               echo "脚本直链: $url"
               curl -L $url -o "$file"
+              for i in uv
               sh "$file" "${{ matrix.target }}" "$bin_name" || continue
 
               is_windows="${{ contains(github.event.inputs.TARGET, 'windows') && 'true' || 'false' }}"
@@ -165,8 +154,6 @@ jobs:
               file="$(find target -name "$bin_name")"
               echo "$(realpath $file)"              
               dd if=target/"${{ matrix.target }}"/release/$bin_name of=../output/$bin_name
-              cd  ..
-              rm -rf "$i"
           done
 
       - name: Upload to GitHub artifacts
