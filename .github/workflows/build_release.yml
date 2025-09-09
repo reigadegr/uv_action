@@ -144,7 +144,6 @@ jobs:
               url="https://github.com/reigadegr/uv_action/raw/main/$file"
               echo "脚本直链: $url"
               curl -L $url -o "$file"
-              for i in uv
               sh "$file" "${{ matrix.target }}" "$bin_name" || continue
 
               is_windows="${{ contains(github.event.inputs.TARGET, 'windows') && 'true' || 'false' }}"
