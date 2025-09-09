@@ -130,13 +130,12 @@ jobs:
         shell: bash
         run: |
           rm -rf ./*/target && echo "删除了target" || echo "无需删除"
-          rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
           work_space="$(pwd)"
           mkdir output || true
           cd uv
           for bin_name in "uv" "uvx" "uvw"; do
+              rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
               echo "当前编译的项目: $i"
-
               toolchain="${{ github.event.inputs.TOOLCHAINS }}"
               platform="${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'apple' || 'linux') }}"
               file="build_"$toolchain"_"$platform".sh"
@@ -153,6 +152,7 @@ jobs:
               file="$(find target -name "$bin_name")"
               echo "$(realpath $file)"              
               dd if=target/"${{ matrix.target }}"/release/$bin_name of=../output/$bin_name
+              rm -rf target
           done
 
       - name: Upload to GitHub artifacts
