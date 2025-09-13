@@ -118,6 +118,7 @@ jobs:
           if [ "${{ github.event.inputs.USE_O2 }}" = "true" ]; then
               sed -i 's/+opt-level = 3/+opt-level = 2/g' ./self_code/patchs/*
           fi
+          touch output/failure.log
           git add  . && git commit -m "auto commit" >/dev/null 2>&1 || echo "无需提交"
           for i in `realpath ./self_code/patchs/*.patch`; do
              patch -p1 -F 3 < $i && git add  . && git commit -m "$i成功应用" || echo "$i应用失败" >>output/failure.log
