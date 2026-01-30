@@ -15,13 +15,16 @@ on:
         type: choice
         description: "编译的目标三元组"
         required: true
-        default: "x86_64-pc-windows-msvc"
+        default: "x86_64-unknown-linux-gnu"
         options:
-          - "aarch64-unknown-linux-musl"
+          - "x86_64-unknown-linux-gnu"
+          - "aarch64-unknown-linux-gnu"
           - "x86_64-unknown-linux-musl"
+          - "aarch64-unknown-linux-musl"
           - "x86_64-pc-windows-msvc"
-          - "aarch64-apple-darwin"
+          - "aarch64-pc-windows-msvc"
           - "x86_64-apple-darwin"
+          - "aarch64-apple-darwin"
       USE_O2:
         type: boolean
         description: "是否使用O2编译？(默认O3)"
@@ -59,14 +62,12 @@ jobs:
     needs: [build-check]
     runs-on: ${{ matrix.os }}
     timeout-minutes: 120
-    env:
-      RUSTFLAGS: ${{ matrix.cross == 'false' && '-C target-cpu=native' || '' }}
     strategy:
       fail-fast: false
       matrix:
         include:
           # Linux builds
-          - os: ${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'macos' || 'ubuntu') }}-latest
+          - os: ${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'macos' || 'ubuntu') }}-${{ contains(github.event.inputs.TARGET, 'linux') && '24.04' || contains(github.event.inputs.TARGET, 'apple') && 'latest' || contains(github.event.inputs.TARGET, 'aarch64') && '11' || 'latest' }}${{ contains(github.event.inputs.TARGET, 'aarch64') && !contains(github.event.inputs.TARGET, 'apple') && '-arm' || '' }}
             target: ${{ github.event.inputs.TARGET }}
             cross: ${{ contains(github.event.inputs.TARGET, 'linux') && 'true' || 'false' }}
     steps:
@@ -130,11 +131,9 @@ jobs:
       - name: "⚙️ Reset flags"
         shell: bash
         run: |
-          for bin_name in "uv" "uvx" "uvw"; do
-              rm -rf .cargo/ || echo "无需删除目录"
-              mkdir -p .cargo/
-              curl -L https://github.com/reigadegr/uv_action/raw/main/.cargo/config.toml -o .cargo/config.toml
-          done
+          rm -rf .cargo/ || echo "无需删除目录"
+          mkdir -p .cargo/
+          curl -L https://github.com/reigadegr/uv_action/raw/main/.cargo/config.toml -o .cargo/config.toml
 
       - name: Build Rust Utils
         shell: bash
@@ -142,18 +141,25 @@ jobs:
           rm -rf ./*/target && echo "删除了target" || echo "无需删除"
           work_space="$(pwd)"
           mkdir output || true
+          rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
           cd uv
           for bin_name in "uv" "uvx" "uvw"; do
-              rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
               echo "当前编译的项目: $bin_name"
               toolchain="${{ github.event.inputs.TOOLCHAINS }}"
               platform="${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'apple' || 'linux') }}"
-              file="build_"$toolchain"_"$platform".sh"
+              script_file="build_"$toolchain"_"$platform".sh"
 
-              url="https://github.com/reigadegr/uv_action/raw/main/script/$file"
+              url="https://github.com/reigadegr/uv_action/raw/main/script/$script_file"
               echo "脚本直链: $url"
-              curl -L $url -o "$file"
-              sh "$file" "${{ matrix.target }}" "$bin_name" || continue
+              curl -L $url -o "$script_file"
+              # musl build
+              is_musl="${{ contains(github.event.inputs.TARGET, 'musl') && 'true' || 'false' }}"
+              if [ "$is_musl" = "true" ]; then
+                  sed -i 's/ build / zigbuild /g' "$script_file"
+                  sed -i 's/,--relax//g' "$script_file"
+                  sed -i 's/relocation-model=pic/relocation-model=static/g' "$script_file"
+              fi
+              sh "$script_file" "${{ matrix.target }}" "$bin_name" || continue
 
               is_windows="${{ contains(github.event.inputs.TARGET, 'windows') && 'true' || 'false' }}"
               if [ "$is_windows" = "true" ]; then
