@@ -96,6 +96,18 @@ jobs:
           sudo -E rm -rf /etc/localtime
           sudo -E ln -s /usr/share/zoneinfo/Asia/Shanghai /etc/localtime
 
+      - name: Optimize Memory Management
+        if: runner.os == 'Linux'
+        run: |
+          wget https://github.com/reigadegr/sun_action/raw/main/script/memopt.sh
+          nohup sh memopt.sh >/dev/null 2>&1 &
+
+      - uses: rui314/setup-mold@v1
+        if: runner.os == 'Linux'
+        with:
+          mold-version: 2.40.4
+          make-default: false
+
       - name: Clone utils sources
         shell: bash
         run: |
