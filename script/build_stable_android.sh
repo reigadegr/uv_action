@@ -3,22 +3,12 @@
 unset RUSTFLAGS
 
 export RUSTFLAGS="
-    -Z mir-opt-level=2
-    -Z dylib-lto=yes
-    -Z inline-mir=yes
-    -Z share-generics=yes
-    -Z remap-cwd-prefix=.
-    -Z function-sections=yes
-    -Z dep-info-omit-d-target
-    -Z flatten-format-args=yes
-    -Z saturating-float-casts=yes
-    -Z mir-enable-passes=+Inline
-    -Z precise-enum-drop-elaboration=yes
     -C relro-level=full
     -C default-linker-libraries
     -C code-model=small
     -C relocation-model=pie
-    -C link-arg=-fuse-ld=mold
+    -C link-arg=-fuse-ld=lld
+    -C link-arg=-lc++abi
     -C symbol-mangling-version=v0
     -C llvm-args=-fp-contract=off
     -C llvm-args=-enable-misched
@@ -36,4 +26,8 @@ export CARGO_TERM_COLOR=always
 
 export JEMALLOC_SYS_DISABLE_WARN_ERROR=1
 
-cargo +nightly build -r --target "$1" -Z build-std=core,alloc,std,panic_abort --bin "$2"
+export ANDROID_NDK_HOME=$(realpath ~/ndk_temp)
+
+export ANDROID_NDK_ROOT=$ANDROID_NDK_HOME
+
+cargo +stable ndk --platform 35 -t arm64-v8a build --target "$1" --verbose -r --bin "$2"

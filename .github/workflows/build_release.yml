@@ -7,7 +7,7 @@ on:
         type: choice
         description: "使用的工具链"
         required: true
-        default: "nightly"
+        default: "stable"
         options:
           - "nightly"
           - "stable"
@@ -17,19 +17,18 @@ on:
         required: true
         default: "x86_64-unknown-linux-gnu"
         options:
+          - "aarch64-linux-android"
           - "x86_64-unknown-linux-gnu"
           - "aarch64-unknown-linux-gnu"
           - "x86_64-unknown-linux-musl"
           - "aarch64-unknown-linux-musl"
           - "x86_64-pc-windows-msvc"
           - "aarch64-pc-windows-msvc"
-          - "x86_64-apple-darwin"
           - "aarch64-apple-darwin"
-      USE_O2:
-        type: boolean
-        description: "是否使用O2编译？(默认O3)"
-        required: true
-        default: false
+          - "x86_64-apple-darwin"
+
+permissions:
+  contents: read
 
 env:
   CARGO_TERM_COLOR: always
@@ -47,7 +46,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
       - name: Debug Show Selected Inputs
         run: |
@@ -56,41 +55,57 @@ jobs:
           echo "Selected TARGET: ${{ github.event.inputs.TARGET }}"
           echo "-----------------------"
 
-  # Build RustFS binaries
-  build-utils:
-    name: Build Utils
+  # Build binaries
+  build-common:
+    name: Build common
     needs: [build-check]
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 120
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux builds
-          - os: ${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'macos' || 'ubuntu') }}-${{ contains(github.event.inputs.TARGET, 'linux') && '24.04' || contains(github.event.inputs.TARGET, 'apple') && 'latest' || contains(github.event.inputs.TARGET, 'aarch64') && '11' || 'latest' }}${{ contains(github.event.inputs.TARGET, 'aarch64') && !contains(github.event.inputs.TARGET, 'apple') && '-arm' || '' }}
+          # Platform builds
+          - os: ${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'macos' || 'ubuntu') }}-${{ contains(github.event.inputs.TARGET, 'linux') && '24.04' || contains(github.event.inputs.TARGET, 'apple') && 'latest' || contains(github.event.inputs.TARGET, 'aarch64') && '11' || 'latest' }}${{ contains(github.event.inputs.TARGET, 'aarch64') && !contains(github.event.inputs.TARGET, 'apple') && !contains(github.event.inputs.TARGET, 'android') && '-arm' || '' }}
             target: ${{ github.event.inputs.TARGET }}
-            cross: ${{ contains(github.event.inputs.TARGET, 'linux') && 'true' || 'false' }}
     steps:
-      - name: Checkout repository
+      - name: "💾 Checkout repository"
         uses: actions/checkout@v5
         with:
-          fetch-depth: 0
+          fetch-depth: 1
 
-      - name: Setup Rust environment
+      - name: "⚙️ show Cargo config"
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          [ -f ~/.cargo/config.toml ] && cat ~/.cargo/config.toml || echo "cfg not found"
+
+      - name: "🚀 Setup Rust environment"
         uses: ./.github/actions/setup
         with:
           rust-version: ${{ github.event.inputs.TOOLCHAINS }}
           target: ${{ matrix.target }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          install-cross-tools: ${{ matrix.cross }}
 
-      - name: Configure Git
+      - name: "⚙️ Configure Git"
         shell: bash
         run: |
-          git config --global user.name "Numbersf"
-          git config --global user.email "263623064@qq.com"
+          git config --global user.name "reigadegr_action"
+          git config --global user.email "1145141919810@qq.com"
 
-      - name: Setup TimeZone
+      - name: Setup ndk and cargo ndk
+        if: runner.os == 'Linux'
+        run: |
+          ndk_url=$(wget -qO- https://github.com/android/ndk/releases/latest | grep -e 'https://dl.google.com/android/repository/android-ndk-.*-linux.zip' | sed -n 's/.*<a href="\([^"]*\)".*/\1/p')
+          wget -O ndk.zip $ndk_url -nv
+          mkdir ~/ndk_temp
+          unzip ndk.zip -d ~/ndk_temp 2>&1 > /dev/null
+          mv ~/ndk_temp/*/* ~/ndk_temp
+          wget https://github.com/reigadegr/thread-opt_builder/raw/main/libbinder_ndk.so
+          cp -f libbinder_ndk.so ~/ndk_temp/toolchains/llvm/prebuilt/linux-x86_64/sysroot/usr/lib/aarch64-linux-android/35/libbinder_ndk.so
+          cargo install cargo-ndk
+
+      - name: "🔧 Setup TimeZone"
         if: runner.os == 'Linux'
         run: |
           sudo -E rm -rf /etc/localtime
@@ -102,90 +117,95 @@ jobs:
           wget https://github.com/reigadegr/sun_action/raw/main/script/memopt.sh
           nohup sh memopt.sh >/dev/null 2>&1 &
 
+      - name: Install Zig
+        if: runner.os == 'Linux'
+        uses: mlugg/setup-zig@v2
+        
       - uses: rui314/setup-mold@v1
         if: runner.os == 'Linux'
         with:
           mold-version: 2.40.4
           make-default: false
 
-      - name: Clone utils sources
+      - name: Install cargo-zigbuild
+        if: runner.os == 'Linux'
         shell: bash
         run: |
-          for i in "astral-sh/uv"; do
- 
-              git clone --depth 1 https://github.com/$i
+          git clone --depth 1 https://github.com/rust-cross/cargo-zigbuild
+          cd cargo-zigbuild
+          cargo add mimalloc --features no_thp,override
+          wget https://github.com/reigadegr/rust_cli_action/raw/main/patchs/zigbuild_mimalloc.patch
+          patch -p2 -F 3 < zigbuild_mimalloc.patch
+          cargo update
+          cargo build -r
+          dd if=target/release/cargo-zigbuild of=./cargo-zigbuild
+          rm -rf target
+          sudo -E cp -af ./cargo-zigbuild ~/.cargo/bin/cargo-zigbuild
+          sudo -E chmod +x ~/.cargo/bin/cargo-zigbuild
+          ls ~/.cargo/bin
+          which cargo-zigbuild || true
+          cd  ..; rm -rf cargo-zigbuild
 
-              cd "$(basename $i)"
-              rm -rf .git rust-toolchain.toml || true
-              cd  ..
-          done
-
-      - name: Optimize upstream mallocator and optmize level
+      - name: "📥 Download github project code"
         shell: bash
-        run: |         
-          git clone --depth 1 https://github.com/reigadegr/uv_action self_code
-          rm -rf self_code/.git .git || true
-          git init
-          mkdir -p output || true
-          echo "flag" > output/flag.txt
-          if [ "${{ github.event.inputs.USE_O2 }}" = "true" ]; then
-              sed -i 's/+opt-level = 3/+opt-level = 2/g' ./self_code/patchs/*
-          fi
-          touch output/failure.log
-          git add  . && git commit -m "auto commit" >/dev/null 2>&1 || echo "无需提交"
-          for i in `realpath ./self_code/patchs/*.patch`; do
-             patch -p1 -F 3 < $i && git add  . && git commit -m "$i成功应用" || echo "$i应用失败" >>output/failure.log
-             git reset --hard
-             git clean -df
+        run: |
+          git clone --depth 1 https://github.com/astral-sh/uv common
+          cd common
+          for i in "uv_mimalloc.patch" \
+          "uv_full_opt.patch"; do
+              curl -L https://github.com/reigadegr/uv_action/raw/main/patchs/$i -o $i
+              patch -p1 -F 3 < $i
           done
-          rm -f output/flag.txt
 
       - name: "⚙️ Reset flags"
         shell: bash
         run: |
-          rm -rf .cargo/ || echo "无需删除目录"
-          mkdir -p .cargo/
-          curl -L https://github.com/reigadegr/uv_action/raw/main/.cargo/config.toml -o .cargo/config.toml
+          cd common
+          mkdir -p .cargo/ || true
+          curl -L https://github.com/reigadegr/uv_action/raw/main/.cargo/config.toml -o .cargo/config2.toml
+          cat .cargo/config2.toml >> .cargo/config.toml
+          rm -f .cargo/config2.toml
 
-      - name: Build Rust Utils
+      - name: "🔨 Build common"
         shell: bash
         run: |
-          rm -rf ./*/target && echo "删除了target" || echo "无需删除"
-          work_space="$(pwd)"
-          mkdir output || true
-          rm -rf ~/.cargo/git ~/.cargo/registry ~/.cache || true
-          cd uv
-          for bin_name in "uv" "uvx" "uvw"; do
-              echo "当前编译的项目: $bin_name"
-              toolchain="${{ github.event.inputs.TOOLCHAINS }}"
-              platform="${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'apple' || 'linux') }}"
-              script_file="build_"$toolchain"_"$platform".sh"
+          cd common
+          toolchain="${{ github.event.inputs.TOOLCHAINS }}"
+          platform="${{ contains(github.event.inputs.TARGET, 'windows') && 'windows' || (contains(github.event.inputs.TARGET, 'apple') && 'apple' || contains(github.event.inputs.TARGET, 'android') && 'android' || 'linux') }}"
+          script_file="build_"$toolchain"_"$platform".sh"
 
-              url="https://github.com/reigadegr/uv_action/raw/main/script/$script_file"
-              echo "脚本直链: $url"
-              curl -L $url -o "$script_file"
-              # musl build
-              is_musl="${{ contains(github.event.inputs.TARGET, 'musl') && 'true' || 'false' }}"
-              if [ "$is_musl" = "true" ]; then
-                  sed -i 's/ build / zigbuild /g' "$script_file"
-                  sed -i 's/,--relax//g' "$script_file"
-                  sed -i 's/relocation-model=pic/relocation-model=static/g' "$script_file"
-              fi
-              sh "$script_file" "${{ matrix.target }}" "$bin_name" || continue
-
+          url="https://github.com/reigadegr/uv_action/raw/main/script/$script_file"
+          echo "脚本直链: $url"
+          curl -L $url -o "$script_file"
+          cat "$script_file"; ls -al
+          is_musl="${{ contains(github.event.inputs.TARGET, 'musl') && 'true' || 'false' }}"
+          if [ "$is_musl" = "true" ]; then
+              sed -i 's/relocation-model=pie/relocation-model=static/g' "$script_file"
+              sed -i 's/ build / zigbuild /g' "$script_file"
+              sed -i 's/,--relax//g' "$script_file"
+              sed -i 's/--pack-dyn-relocs=relr,//g' "$script_file"
+              sed -i '/--no-rosegment/d' "$script_file"
+          fi
+          
+          for i in "uv"; do
+              bin_name="$i"
+              sh "$script_file" "${{ matrix.target }}" "$bin_name" || true
+    
               is_windows="${{ contains(github.event.inputs.TARGET, 'windows') && 'true' || 'false' }}"
               if [ "$is_windows" = "true" ]; then
                   bin_name=$bin_name.exe
               fi
-              file="$(find target -name "$bin_name")"
-              echo "$(realpath $file)"              
-              dd if=target/"${{ matrix.target }}"/release/$bin_name of=../output/$bin_name
-              # rm -rf target
+              file="$(find . -name "$bin_name")"
+              echo "$(realpath $file)"
+              mkdir -p ../${{ github.event.inputs.TARGET }}_module || echo "已有默认目录"
+              dd if=./target/"${{ matrix.target }}"/release/$bin_name of=../"${{ matrix.target }}"_module/$bin_name
           done
+          
+          git log > ../"${{ matrix.target }}"_module/commits.txt
 
-      - name: Upload to GitHub artifacts
+      - name: "📤 Upload to GitHub artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.TARGET }}_uv_${{ github.event.inputs.TOOLCHAINS }}
-          path: output/*
-          retention-days: 2
+          name: ${{ github.event.inputs.TARGET }}_openfang
+          path: ${{ matrix.target }}_module/*
+          retention-days: 3

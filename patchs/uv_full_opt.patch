@@ -1,7 +1,7 @@
 diff --git a/Cargo.toml b/Cargo.toml
 index ad43c0f..d6dfe81 100644
---- a/uv/Cargo.toml
-+++ b/uv/Cargo.toml
+--- a/Cargo.toml
++++ b/Cargo.toml
 @@ -263,8 +263,14 @@ use_self = "warn"
  large_stack_arrays = "allow"
  
