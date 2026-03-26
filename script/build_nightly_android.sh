@@ -41,4 +41,4 @@ export ANDROID_NDK_HOME=$(realpath ~/ndk_temp)
 
 export ANDROID_NDK_ROOT=$ANDROID_NDK_HOME
 
-cargo +nightly ndk --platform 35 -t arm64-v8a build --target "$1" -Z trim-paths --verbose -r --bin "$2" -Z build-std=core,alloc,std,panic_abort
+cargo +nightly ndk --platform 35 -t arm64-v8a build --target "$1" -Z trim-paths --verbose -r --bin "$2" -Z build-std=core,alloc,std,panic_abort --all-features

@@ -36,4 +36,4 @@ export CARGO_TERM_COLOR=always
 
 export JEMALLOC_SYS_DISABLE_WARN_ERROR=1
 
-cargo +nightly build -r --target "$1" -- -Z trim-paths -Z build-std=core,alloc,std,panic_abort
+cargo +nightly build -r --target "$1" -- -Z trim-paths -Z build-std=core,alloc,std,panic_abort --bin "$2" --all-features
