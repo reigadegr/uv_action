@@ -151,8 +151,7 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/astral-sh/uv common
           cd common
-          for i in "uv_mimalloc.patch" \
-          "uv_full_opt.patch"; do
+          for i in "uv_mimalloc.patch"; do
               curl -L https://github.com/reigadegr/uv_action/raw/main/patchs/$i -o $i
               patch -p1 -F 3 < $i
           done
@@ -206,6 +205,6 @@ jobs:
       - name: "📤 Upload to GitHub artifacts"
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ github.event.inputs.TARGET }}_openfang
+          name: ${{ github.event.inputs.TARGET }}_uv
           path: ${{ matrix.target }}_module/*
           retention-days: 3
