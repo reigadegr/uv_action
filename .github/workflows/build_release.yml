@@ -186,7 +186,7 @@ jobs:
               sed -i '/--no-rosegment/d' "$script_file"
           fi
           
-          for i in "uv"; do
+          for i in "uv" "uvx" "uvw"; do
               bin_name="$i"
               sh "$script_file" "${{ matrix.target }}" "$bin_name" || true
     
